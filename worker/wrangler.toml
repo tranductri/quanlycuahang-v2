@@ -1,0 +1,8 @@
+name = "quanlycuahang"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+# SUPABASE_URL is set here (non-secret).
+# SUPABASE_SERVICE_KEY must be set as a wrangler secret (never commit it).
+[vars]
+SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co"

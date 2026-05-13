@@ -1,0 +1,72 @@
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+const DENOMS = [500000, 200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000];
+
+export default {
+  async fetch(request, env) {
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: CORS });
+    }
+    const url = new URL(request.url);
+    const action = url.searchParams.get('action');
+    try {
+      let result;
+      if (request.method === 'POST') {
+        result = await submitShift(env, await request.json());
+      } else if (action === 'getProducts') {
+        result = await getProducts(env);
+      } else if (action === 'lastShift') {
+        result = await getLastShift(env, url.searchParams.get('vi_tri'));
+      } else if (action === 'getUsers') {
+        result = await getUsers(env);
+      } else {
+        result = { success: true };
+      }
+      return jsonResponse(result);
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  },
+};
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  });
+}
+
+async function sb(env, path, opts = {}) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1${path}`, {
+    ...opts,
+    headers: {
+      apikey: env.SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: opts.prefer ?? '',
+    },
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+}
+
+async function getProducts(env) {
+  return { success: true, products: [] }; // stub — implemented in Task 4
+}
+
+async function getUsers(env) {
+  return { success: true, emails: [] }; // stub — implemented in Task 5
+}
+
+async function getLastShift(env, vi_tri) {
+  return { success: false, error: 'not implemented' }; // stub — implemented in Task 6
+}
+
+async function submitShift(env, data) {
+  return { success: false, error: 'not implemented' }; // stub — implemented in Task 7
+}
