@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Báo cáo — Quản lý cửa hàng</title>
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; font-size: 14px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .header { background: #1a1a2e; color: #fff; padding: 12px 16px; margin-bottom: 16px; }
+    .header h1 { font-size: 18px; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+    .filters input, .filters select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+    .filters button { padding: 6px 14px; background: #1a1a2e; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .card { background: #fff; padding: 14px 16px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    .card .label { font-size: 12px; color: #666; margin-bottom: 4px; }
+    .card .value { font-size: 20px; font-weight: 700; }
+    .section { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 16px; margin-bottom: 20px; }
+    .section h2 { font-size: 15px; margin-bottom: 12px; color: #333; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #1a1a2e; color: #fff; padding: 8px 10px; text-align: left; position: sticky; top: 0; }
+    td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+    tr:hover td { background: #f9f9f9; }
+    .bar-wrap { height: 10px; background: #eee; border-radius: 5px; min-width: 60px; }
+    .bar-fill { height: 10px; background: #1a4d8f; border-radius: 5px; }
+    .red td { background: #fff0f0 !important; }
+    .login-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 16px; }
+    .loading { text-align: center; padding: 40px; color: #888; }
+    .num-right { text-align: right; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const SUPABASE_URL = 'SUPABASE_URL_HERE';
+const SUPABASE_ANON_KEY = 'SUPABASE_ANON_KEY_HERE';
+const GIS_CLIENT_ID = '570458211298-ogrk61hf89ou38l8q6lt9pba0qi2p969.apps.googleusercontent.com';
+const AUTH_KEY = 'ca_auth';
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function fmt(n) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString('vi-VN');
+}
+
+function today() { return new Date().toISOString().split('T')[0]; }
+function daysAgo(n) {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return d.toISOString().split('T')[0];
+}
+
+function App() {
+  const [user, setUser] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch { return null; }
+  });
+
+  const handleCredential = React.useCallback(async (resp) => {
+    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${resp.credential}`);
+    const info = await res.json();
+    if (!info.email) return;
+    const authUser = { email: info.email, name: info.name, picture: info.picture };
+    localStorage.setItem(AUTH_KEY, JSON.stringify(authUser));
+    setUser(authUser);
+  }, []);
+
+  React.useEffect(() => {
+    if (user) return;
+    window.google?.accounts.id.initialize({ client_id: GIS_CLIENT_ID, callback: handleCredential });
+    window.google?.accounts.id.renderButton(document.getElementById('g-btn'), { theme: 'outline', size: 'large' });
+  }, [user, handleCredential]);
+
+  if (!user) {
+    return (
+      <div className="login-wrap">
+        <h2>Đăng nhập để xem báo cáo</h2>
+        <div id="g-btn"></div>
+      </div>
+    );
+  }
+  return <Dashboard user={user} onLogout={() => { localStorage.removeItem(AUTH_KEY); setUser(null); }} />;
+}
+
+function Dashboard({ user, onLogout }) {
+  const [startDate, setStartDate] = React.useState(daysAgo(30));
+  const [endDate,   setEndDate]   = React.useState(today());
+  const [location,  setLocation]  = React.useState('');
+  const [locations, setLocations] = React.useState([]);
+  const [shifts,    setShifts]    = React.useState(null);
+  const [products,  setProducts]  = React.useState(null);
+  const [loading,   setLoading]   = React.useState(false);
+
+  React.useEffect(() => {
+    db.from('locations').select('id,name').then(({ data }) => setLocations(data || []));
+  }, []);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      let q = db.from('shifts').select('*,locations(name)').gte('date', startDate).lte('date', endDate).order('date', { ascending: false });
+      if (location) q = q.eq('location_id', location);
+      const { data: shiftData, error: e1 } = await q;
+      if (e1) throw e1;
+
+      const ids = (shiftData || []).map(s => s.id);
+      let prods = [];
+      if (ids.length) {
+        const { data: pd, error: e2 } = await db.from('shift_products').select('*,products(name)').in('shift_id', ids);
+        if (e2) throw e2;
+        prods = pd || [];
+      }
+      setShifts(shiftData || []);
+      setProducts(prods);
+    } finally {
+      setLoading(false);
+    }
+  }, [startDate, endDate, location]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const summary = React.useMemo(() => {
+    if (!shifts) return null;
+    return {
+      totalSales: shifts.reduce((s, r) => s + Number(r.total_sales || 0), 0),
+      totalExpenses: shifts.reduce((s, r) => s + Number(r.expenses || 0), 0),
+      avgCashDiff: shifts.length ? shifts.reduce((s, r) => s + Number(r.cash_diff || 0), 0) / shifts.length : 0,
+      count: shifts.length,
+    };
+  }, [shifts]);
+
+  return (
+    <div>
+      <div className="header">
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <h1>Báo cáo — Quản lý cửa hàng</h1>
+          <span style={{ fontSize:12, opacity:.7 }}>{user.name} &nbsp;
+            <button onClick={onLogout} style={{ background:'transparent', border:'1px solid #fff', color:'#fff', cursor:'pointer', padding:'2px 8px', borderRadius:4 }}>Đăng xuất</button>
+          </span>
+        </div>
+      </div>
+      <div className="container">
+        <div className="filters">
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+          <span>→</span>
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+          <select value={location} onChange={e => setLocation(e.target.value)}>
+            <option value="">Tất cả cơ sở</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          <button onClick={load}>{loading ? 'Đang tải...' : 'Áp dụng'}</button>
+        </div>
+
+        {loading && <div className="loading">Đang tải dữ liệu...</div>}
+
+        {!loading && summary && (
+          <div className="summary-cards">
+            <div className="card"><div className="label">Tổng doanh thu</div><div className="value">{fmt(summary.totalSales)}</div></div>
+            <div className="card"><div className="label">Tổng chi phí</div><div className="value">{fmt(summary.totalExpenses)}</div></div>
+            <div className="card"><div className="label">Lệch tiền TB</div><div className="value">{fmt(Math.round(summary.avgCashDiff))}</div></div>
+            <div className="card"><div className="label">Số ca</div><div className="value">{summary.count}</div></div>
+          </div>
+        )}
+
+        {!loading && <ProductRevenue products={products} />}
+        {!loading && <ShiftsTable shifts={shifts} />}
+        {!loading && <CashDiscrepancy shifts={shifts} />}
+      </div>
+    </div>
+  );
+}
+
+// Stub components — replaced in Tasks 10, 11, 12
+function ProductRevenue() { return null; }
+function ShiftsTable()    { return null; }
+function CashDiscrepancy(){ return null; }
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
