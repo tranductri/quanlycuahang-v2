@@ -56,7 +56,19 @@ async function sb(env, path, opts = {}) {
 }
 
 async function getProducts(env) {
-  return { success: true, products: [] }; // stub — implemented in Task 4
+  const rows = await sb(env,
+    '/products?select=name,price,product_locations(locations(name))&active=eq.true&order=sort_order.asc'
+  );
+  const products = rows.map(p => {
+    const locationNames = p.product_locations.map(pl => pl.locations.name);
+    return {
+      ten: p.name,
+      gia: p.price,
+      binh_tan: locationNames.includes('Bình Tân'),
+      quan_6: locationNames.includes('Quận 6'),
+    };
+  });
+  return { success: true, products };
 }
 
 async function getUsers(env) {
