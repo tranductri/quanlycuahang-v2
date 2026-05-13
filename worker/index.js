@@ -72,7 +72,8 @@ async function getProducts(env) {
 }
 
 async function getUsers(env) {
-  return { success: true, emails: [] }; // stub — implemented in Task 5
+  const rows = await sb(env, '/users?select=email');
+  return { success: true, emails: rows.map(r => r.email.toLowerCase()) };
 }
 
 async function getLastShift(env, vi_tri) {
