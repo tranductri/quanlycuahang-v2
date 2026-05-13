@@ -41,13 +41,14 @@ function jsonResponse(data, status = 200) {
 }
 
 async function sb(env, path, opts = {}) {
+  const { prefer, ...fetchOpts } = opts;
   const res = await fetch(`${env.SUPABASE_URL}/rest/v1${path}`, {
-    ...opts,
+    ...fetchOpts,
     headers: {
       apikey: env.SUPABASE_SERVICE_KEY,
       Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
       'Content-Type': 'application/json',
-      Prefer: opts.prefer ?? '',
+      ...(prefer ? { Prefer: prefer } : {}),
     },
   });
   if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
@@ -207,33 +208,40 @@ async function submitShift(env, data) {
   });
   const shift_id = shifts[0].id;
 
-  // 7. Insert shift_products
-  await sb(env, '/shift_products', {
-    method: 'POST',
-    body: JSON.stringify(shiftProductRows.map(r => ({ ...r, shift_id }))),
-  });
-
-  // 8. Insert shift_cash (9 denoms × 3 types = 27 rows)
-  const cashRows = [];
-  DENOMS.forEach(d => {
-    cashRows.push({ shift_id, type: 'opening', denomination: d, count: Number(tienDau[d])  || 0 });
-    cashRows.push({ shift_id, type: 'closing', denomination: d, count: Number(tienCuoi[d]) || 0 });
-    cashRows.push({ shift_id, type: 'stored',  denomination: d, count: Number(catDt[d])    || 0 });
-  });
-  await sb(env, '/shift_cash', { method: 'POST', body: JSON.stringify(cashRows) });
-
-  // 9. Insert shift_expenses (if any)
-  const expItems = data.chi_phi_items || [];
-  if (expItems.length) {
-    await sb(env, '/shift_expenses', {
+  try {
+    // 7. Insert shift_products
+    await sb(env, '/shift_products', {
       method: 'POST',
-      body: JSON.stringify(expItems.map(item => ({
-        shift_id,
-        category: item.type  || null,
-        notes:    item.note  || null,
-        amount:   Number(item.amount) || 0,
-      }))),
+      body: JSON.stringify(shiftProductRows.map(r => ({ ...r, shift_id }))),
     });
+
+    // 8. Insert shift_cash (9 denoms × 3 types = 27 rows)
+    const cashRows = [];
+    DENOMS.forEach(d => {
+      cashRows.push({ shift_id, type: 'opening', denomination: d, count: Number(tienDau[d])  || 0 });
+      cashRows.push({ shift_id, type: 'closing', denomination: d, count: Number(tienCuoi[d]) || 0 });
+      cashRows.push({ shift_id, type: 'stored',  denomination: d, count: Number(catDt[d])    || 0 });
+    });
+    await sb(env, '/shift_cash', { method: 'POST', body: JSON.stringify(cashRows) });
+
+    // 9. Insert shift_expenses (if any)
+    const expItems = data.chi_phi_items || [];
+    if (expItems.length) {
+      await sb(env, '/shift_expenses', {
+        method: 'POST',
+        body: JSON.stringify(expItems.map(item => ({
+          shift_id,
+          category: item.type  || null,
+          notes:    item.note  || null,
+          amount:   Number(item.amount) || 0,
+        }))),
+      });
+    }
+  } catch (err) {
+    // Compensating delete — remove the shift row so a retry doesn't create a duplicate.
+    // shift_products, shift_cash, shift_expenses cascade-delete automatically.
+    await sb(env, `/shifts?id=eq.${shift_id}`, { method: 'DELETE' }).catch(() => {});
+    throw err;
   }
 
   return { success: true, message: 'Đã lưu ca thành công!' };
