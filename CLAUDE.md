@@ -34,7 +34,7 @@ wrangler deploy
 
 | Resource | Value |
 |---|---|
-| Worker URL | `https://quanlycuahang.tdtri281090.workers.dev` |
+| Worker URL | `https://quanlycuahang-v2.tdtri281090.workers.dev` |
 | Supabase project URL | `https://YOUR_PROJECT_REF.supabase.co` (update after project creation) |
 | GIS OAuth client ID | `570458211298-ogrk61hf89ou38l8q6lt9pba0qi2p969.apps.googleusercontent.com` |
 
