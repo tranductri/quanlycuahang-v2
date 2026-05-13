@@ -223,7 +223,62 @@ function ProductRevenue({ products }) {
     </div>
   );
 }
-function ShiftsTable()    { return null; }
+function ShiftsTable({ shifts }) {
+  if (!shifts) return null;
+
+  const totalRow = {
+    total_sales: shifts.reduce((s, r) => s + Number(r.total_sales || 0), 0),
+    expenses:    shifts.reduce((s, r) => s + Number(r.expenses    || 0), 0),
+    bank_sales:  shifts.reduce((s, r) => s + Number(r.bank_sales  || 0), 0),
+    cash_diff:   shifts.reduce((s, r) => s + Number(r.cash_diff   || 0), 0),
+  };
+
+  return (
+    <div className="section">
+      <h2>Chi tiết ca làm việc</h2>
+      {!shifts.length ? <p style={{color:'#888'}}>Chưa có dữ liệu</p> : (
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead><tr>
+              <th>Ngày</th>
+              <th>Cơ sở</th>
+              <th>Nhân viên</th>
+              <th className="num-right">Tổng DT</th>
+              <th className="num-right">Chi phí</th>
+              <th className="num-right">CK/NH</th>
+              <th className="num-right">Lệch tiền</th>
+              <th>Ghi chú</th>
+            </tr></thead>
+            <tbody>
+              {shifts.map(s => (
+                <tr key={s.id}>
+                  <td>{s.date}</td>
+                  <td>{s.locations?.name || '—'}</td>
+                  <td>{s.staff_name}</td>
+                  <td className="num-right">{fmt(s.total_sales)}</td>
+                  <td className="num-right">{fmt(s.expenses)}</td>
+                  <td className="num-right">{fmt(s.bank_sales)}</td>
+                  <td className="num-right" style={{ color: Number(s.cash_diff) !== 0 ? '#c00' : 'inherit' }}>
+                    {fmt(s.cash_diff)}
+                  </td>
+                  <td>{s.notes || ''}</td>
+                </tr>
+              ))}
+              <tr style={{ fontWeight: 700, background: '#f0f0f0' }}>
+                <td colSpan={3}>Tổng</td>
+                <td className="num-right">{fmt(totalRow.total_sales)}</td>
+                <td className="num-right">{fmt(totalRow.expenses)}</td>
+                <td className="num-right">{fmt(totalRow.bank_sales)}</td>
+                <td className="num-right">{fmt(totalRow.cash_diff)}</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 function CashDiscrepancy(){ return null; }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
