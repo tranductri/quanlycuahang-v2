@@ -77,7 +77,30 @@ async function getUsers(env) {
 }
 
 async function getLastShift(env, vi_tri) {
-  return { success: false, error: 'not implemented' }; // stub — implemented in Task 6
+  if (!vi_tri) return { success: false, error: 'vi_tri required' };
+
+  const locs = await sb(env,
+    `/locations?name=eq.${encodeURIComponent(vi_tri)}&select=id`
+  );
+  if (!locs.length) return { success: false, error: `Unknown location: ${vi_tri}` };
+
+  const shifts = await sb(env,
+    `/shifts?location_id=eq.${locs[0].id}&select=id,date,staff_name&order=created_at.desc&limit=1`
+  );
+  if (!shifts.length) return { success: false, error: 'Chưa có ca nào được lưu' };
+
+  const sps = await sb(env,
+    `/shift_products?shift_id=eq.${shifts[0].id}&select=closing_actual&order=position.asc`
+  );
+
+  return {
+    success: true,
+    ngay: shifts[0].date,
+    ten: shifts[0].staff_name,
+    products: sps.map(sp => ({
+      cuoi_thuc: sp.closing_actual !== null ? sp.closing_actual : undefined,
+    })),
+  };
 }
 
 async function submitShift(env, data) {
