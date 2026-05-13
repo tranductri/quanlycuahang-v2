@@ -178,7 +178,51 @@ function Dashboard({ user, onLogout }) {
 }
 
 // Stub components — replaced in Tasks 10, 11, 12
-function ProductRevenue() { return null; }
+function ProductRevenue({ products }) {
+  const rows = React.useMemo(() => {
+    if (!products) return [];
+    const map = {};
+    products.forEach(sp => {
+      const name = sp.products?.name || 'Unknown';
+      if (!map[name]) map[name] = { name, revenue: 0, consumed: 0 };
+      map[name].revenue  += Number(sp.revenue  || 0);
+      map[name].consumed += Number(sp.consumed || 0);
+    });
+    return Object.values(map).sort((a, b) => b.revenue - a.revenue);
+  }, [products]);
+
+  const maxRev = rows[0]?.revenue || 1;
+
+  return (
+    <div className="section">
+      <h2>Doanh thu theo sản phẩm</h2>
+      {!rows.length ? <p style={{color:'#888'}}>Chưa có dữ liệu</p> : (
+        <table>
+          <thead><tr>
+            <th>Sản phẩm</th>
+            <th className="num-right">Đã bán</th>
+            <th className="num-right">Doanh thu (đ)</th>
+            <th style={{width:120}}>Tỉ lệ</th>
+          </tr></thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.name}>
+                <td>{r.name}</td>
+                <td className="num-right">{fmt(r.consumed)}</td>
+                <td className="num-right">{fmt(r.revenue)}</td>
+                <td>
+                  <div className="bar-wrap">
+                    <div className="bar-fill" style={{ width: `${Math.round(r.revenue / maxRev * 100)}%` }} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
 function ShiftsTable()    { return null; }
 function CashDiscrepancy(){ return null; }
 
