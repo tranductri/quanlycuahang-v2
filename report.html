@@ -279,7 +279,47 @@ function ShiftsTable({ shifts }) {
     </div>
   );
 }
-function CashDiscrepancy(){ return null; }
+function CashDiscrepancy({ shifts }) {
+  const THRESHOLD = 50000;
+
+  const rows = React.useMemo(() => {
+    if (!shifts) return [];
+    return [...shifts]
+      .sort((a, b) => Math.abs(Number(b.cash_diff)) - Math.abs(Number(a.cash_diff)))
+      .filter(s => s.cash_diff !== 0 && s.cash_diff !== null);
+  }, [shifts]);
+
+  return (
+    <div className="section">
+      <h2>Lệch tiền (theo mức độ)</h2>
+      <p style={{ fontSize:12, color:'#888', marginBottom:8 }}>
+        Đỏ = lệch &gt; {fmt(THRESHOLD)}đ. Chỉ hiển thị ca có lệch khác 0.
+      </p>
+      {!rows.length ? <p style={{color:'#888'}}>Không có ca nào lệch tiền trong khoảng thời gian này</p> : (
+        <table>
+          <thead><tr>
+            <th>Ngày</th>
+            <th>Cơ sở</th>
+            <th>Nhân viên</th>
+            <th className="num-right">Lệch tiền (đ)</th>
+            <th>Ghi chú</th>
+          </tr></thead>
+          <tbody>
+            {rows.map(s => (
+              <tr key={s.id} className={Math.abs(Number(s.cash_diff)) > THRESHOLD ? 'red' : ''}>
+                <td>{s.date}</td>
+                <td>{s.locations?.name || '—'}</td>
+                <td>{s.staff_name}</td>
+                <td className="num-right" style={{ color: '#c00', fontWeight: 600 }}>{fmt(s.cash_diff)}</td>
+                <td>{s.notes || ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
