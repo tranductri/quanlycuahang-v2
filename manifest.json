@@ -1,0 +1,15 @@
+{
+  "name": "Chita Foods — Kiểm Kê Ca",
+  "short_name": "Chita",
+  "description": "Quản lý ca làm việc Chita Foods",
+  "start_url": "/quanlycuahang/",
+  "scope": "/quanlycuahang/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffe44c",
+  "theme_color": "#ffe44c",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
