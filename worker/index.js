@@ -135,23 +135,21 @@ async function submitShift(env, data) {
 
   const shiftProductRows = locationProds.map((p, locIdx) => {
     const v             = dataProds[p.idx] || {};
-    const openingTotal  = stockTypes.reduce((sum, st) => sum + (Number(v[st.field_key]) || 0), 0);
-    const closingTotal  = stockTypes.reduce((sum, st) => sum + (st.closing_field_key ? (Number(v[st.closing_field_key]) || 0) : 0), 0);
-    const sold          = Number(v.xuat)   || 0;
-    const received      = Number(v.nhap)   || 0;
-    const damaged       = Number(v.hu)     || 0;
-    const promo         = Number(v.km)     || 0;
-    const transferred   = Number(v.chuyen) || 0;
-    const hasClosing    = stockTypes.some(st => st.closing_field_key && v[st.closing_field_key] !== undefined && v[st.closing_field_key] !== '');
-    const consumed      = hasClosing
+    const openingTotal = stockTypes.reduce((sum, st) => sum + (Number(v[st.field_key]) || 0), 0);
+    const closingTotal = stockTypes.reduce((sum, st) => sum + (st.closing_field_key ? (Number(v[st.closing_field_key]) || 0) : 0), 0);
+    const received     = Number(v.nhap)   || 0;
+    const damaged      = Number(v.hu)     || 0;
+    const promo        = Number(v.km)     || 0;
+    const transferred  = Number(v.chuyen) || 0;
+    const hasClosing   = stockTypes.some(st => st.closing_field_key && v[st.closing_field_key] !== undefined && v[st.closing_field_key] !== '');
+    const consumed     = hasClosing
       ? Math.max(0, openingTotal + received - damaged - promo - transferred - closingTotal)
-      : sold;
-    const revenue = consumed * p.price;
+      : null;
+    const revenue = (consumed ?? 0) * p.price;
     totalSales   += revenue;
     return {
       product_id: p.id,
       position: locIdx,
-      sold,
       received,
       damaged,
       promo,
