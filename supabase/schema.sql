@@ -49,20 +49,17 @@ CREATE TABLE stock_types (
 );
 
 CREATE TABLE shift_products (
-  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  shift_id         uuid REFERENCES shifts(id) ON DELETE CASCADE,
-  product_id       uuid REFERENCES products(id),
-  position         int NOT NULL DEFAULT 0,
-  sold             int DEFAULT 0,
-  received         int DEFAULT 0,
-  damaged          int DEFAULT 0,
-  promo            int DEFAULT 0,
-  transferred      int DEFAULT 0,
-  closing_actual   int,
-  closing_expected int,
-  discrepancy      int,
-  consumed         int DEFAULT 0,
-  revenue          numeric DEFAULT 0
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  shift_id    uuid REFERENCES shifts(id) ON DELETE CASCADE,
+  product_id  uuid REFERENCES products(id),
+  position    int NOT NULL DEFAULT 0,
+  sold        int DEFAULT 0,
+  received    int DEFAULT 0,
+  damaged     int DEFAULT 0,
+  promo       int DEFAULT 0,
+  transferred int DEFAULT 0,
+  consumed    int DEFAULT 0,
+  revenue     numeric DEFAULT 0
 );
 
 -- One row per stock type per product per shift — opening counts.

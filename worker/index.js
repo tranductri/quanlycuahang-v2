@@ -91,16 +91,17 @@ async function getLastShift(env, vi_tri) {
   if (!shifts.length) return { success: false, error: 'Chưa có ca nào được lưu' };
 
   const sps = await sb(env,
-    `/shift_products?shift_id=eq.${shifts[0].id}&select=closing_actual&order=position.asc`
+    `/shift_products?shift_id=eq.${shifts[0].id}&select=position,shift_product_closings(count)&order=position.asc`
   );
 
   return {
     success: true,
     ngay: shifts[0].date,
     ten: shifts[0].staff_name,
-    products: sps.map(sp => ({
-      cuoi_thuc: sp.closing_actual !== null ? sp.closing_actual : undefined,
-    })),
+    products: sps.map(sp => {
+      const total = (sp.shift_product_closings || []).reduce((s, r) => s + r.count, 0);
+      return { cuoi_thuc: total > 0 ? total : undefined };
+    }),
   };
 }
 
@@ -133,19 +134,17 @@ async function submitShift(env, data) {
   let totalSales = 0;
 
   const shiftProductRows = locationProds.map((p, locIdx) => {
-    const v            = dataProds[p.idx] || {};
-    const openingTotal = stockTypes.reduce((sum, st) => sum + (Number(v[st.field_key]) || 0), 0);
-    const sold         = Number(v.xuat)   || 0;
-    const received     = Number(v.nhap)   || 0;
-    const damaged      = Number(v.hu)     || 0;
-    const promo        = Number(v.km)     || 0;
-    const transferred  = Number(v.chuyen) || 0;
-    const closingActual = (v.cuoi_thuc !== undefined && v.cuoi_thuc !== '')
-      ? Number(v.cuoi_thuc) : null;
-    const expected    = openingTotal + received - sold - damaged - promo - transferred;
-    const discrepancy = closingActual !== null ? closingActual - expected : null;
-    const consumed    = closingActual !== null
-      ? Math.max(0, openingTotal + received - damaged - promo - transferred - closingActual)
+    const v             = dataProds[p.idx] || {};
+    const openingTotal  = stockTypes.reduce((sum, st) => sum + (Number(v[st.field_key]) || 0), 0);
+    const closingTotal  = stockTypes.reduce((sum, st) => sum + (st.closing_field_key ? (Number(v[st.closing_field_key]) || 0) : 0), 0);
+    const sold          = Number(v.xuat)   || 0;
+    const received      = Number(v.nhap)   || 0;
+    const damaged       = Number(v.hu)     || 0;
+    const promo         = Number(v.km)     || 0;
+    const transferred   = Number(v.chuyen) || 0;
+    const hasClosing    = stockTypes.some(st => st.closing_field_key && v[st.closing_field_key] !== undefined && v[st.closing_field_key] !== '');
+    const consumed      = hasClosing
+      ? Math.max(0, openingTotal + received - damaged - promo - transferred - closingTotal)
       : sold;
     const revenue = consumed * p.price;
     totalSales   += revenue;
@@ -157,9 +156,6 @@ async function submitShift(env, data) {
       damaged,
       promo,
       transferred,
-      closing_actual: closingActual,
-      closing_expected: expected,
-      discrepancy,
       consumed,
       revenue,
     };
