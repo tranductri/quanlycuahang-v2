@@ -35,6 +35,18 @@ INSERT INTO product_locations (product_id, location_id)
 SELECT p.id, l.id FROM products p, locations l
 WHERE p.sort_order BETWEEN 8 AND 16 AND l.name = 'Bình Tân';
 
+-- Stock types per location.
+-- Both locations start with the same 4 types. Add/remove rows per location as needed.
+INSERT INTO stock_types (location_id, name, field_key, sort_order)
+SELECT l.id, t.name, t.field_key, t.sort_order
+FROM locations l
+CROSS JOIN (VALUES
+  ('H1',  'dau_h1',  0),
+  ('H2',  'dau_h2',  1),
+  ('Kho', 'dau_kho', 2),
+  ('Hộp', 'dau_cu',  3)
+) AS t(name, field_key, sort_order);
+
 -- Users — add staff emails here (replace with real emails)
 INSERT INTO users (email) VALUES
   ('tdtri281090@gmail.com');

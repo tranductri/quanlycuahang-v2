@@ -112,10 +112,11 @@ async function submitShift(env, data) {
   if (!locs.length) throw new Error(`Unknown location: ${data.vi_tri}`);
   const location_id = locs[0].id;
 
-  // 2. All products in global order (same order as getProducts / allProducts in frontend)
-  const allProducts = await sb(env,
-    `/products?select=id,price,product_locations(locations(name))&active=eq.true&order=sort_order.asc`
-  );
+  // 2. Fetch products and stock types for this location in parallel
+  const [allProducts, stockTypes] = await Promise.all([
+    sb(env, '/products?select=id,price,product_locations(locations(name))&active=eq.true&order=sort_order.asc'),
+    sb(env, `/stock_types?location_id=eq.${location_id}&active=eq.true&order=sort_order.asc&select=id,field_key`),
+  ]);
 
   // 3. Filter to location's products (preserve global index as idx)
   const locationProds = allProducts
@@ -127,39 +128,30 @@ async function submitShift(env, data) {
     }))
     .filter(p => p.inLocation);
 
-  // 4. Compute per-product rows
+  // 4. Compute per-product rows (opening totals derived from stock types)
   const dataProds = data.products || [];
   let totalSales = 0;
 
   const shiftProductRows = locationProds.map((p, locIdx) => {
-    const v             = dataProds[p.idx] || {};
-    const openingShelf  = Number(v.dau_h1)   || 0;
-    const openingShelf2 = Number(v.dau_h2)   || 0;
-    const openingStock  = Number(v.dau_kho)  || 0;
-    const openingBox    = Number(v.dau_cu)   || 0;
-    const sold          = Number(v.xuat)     || 0;
-    const received      = Number(v.nhap)     || 0;
-    const damaged       = Number(v.hu)       || 0;
-    const promo         = Number(v.km)       || 0;
-    const transferred   = Number(v.chuyen)   || 0;
+    const v            = dataProds[p.idx] || {};
+    const openingTotal = stockTypes.reduce((sum, st) => sum + (Number(v[st.field_key]) || 0), 0);
+    const sold         = Number(v.xuat)   || 0;
+    const received     = Number(v.nhap)   || 0;
+    const damaged      = Number(v.hu)     || 0;
+    const promo        = Number(v.km)     || 0;
+    const transferred  = Number(v.chuyen) || 0;
     const closingActual = (v.cuoi_thuc !== undefined && v.cuoi_thuc !== '')
       ? Number(v.cuoi_thuc) : null;
-    const expected    = openingShelf + openingShelf2 + openingStock + openingBox
-                        + received - sold - damaged - promo - transferred;
+    const expected    = openingTotal + received - sold - damaged - promo - transferred;
     const discrepancy = closingActual !== null ? closingActual - expected : null;
     const consumed    = closingActual !== null
-      ? Math.max(0, openingShelf + openingShelf2 + openingStock + openingBox
-                     + received - damaged - promo - transferred - closingActual)
+      ? Math.max(0, openingTotal + received - damaged - promo - transferred - closingActual)
       : sold;
     const revenue = consumed * p.price;
     totalSales   += revenue;
     return {
       product_id: p.id,
       position: locIdx,
-      opening_shelf: openingShelf,
-      opening_shelf2: openingShelf2,
-      opening_stock: openingStock,
-      opening_box: openingBox,
       sold,
       received,
       damaged,
@@ -209,11 +201,25 @@ async function submitShift(env, data) {
   const shift_id = shifts[0].id;
 
   try {
-    // 7. Insert shift_products
-    await sb(env, '/shift_products', {
+    // 7. Insert shift_products, get back IDs for opening rows
+    const insertedSPs = await sb(env, '/shift_products', {
       method: 'POST',
+      prefer: 'return=representation',
       body: JSON.stringify(shiftProductRows.map(r => ({ ...r, shift_id }))),
     });
+
+    // 7b. Insert shift_product_openings (one row per stock type per product)
+    if (stockTypes.length) {
+      const openingRows = insertedSPs.flatMap((sp, locIdx) => {
+        const v = dataProds[locationProds[locIdx].idx] || {};
+        return stockTypes.map(st => ({
+          shift_product_id: sp.id,
+          stock_type_id: st.id,
+          count: Number(v[st.field_key]) || 0,
+        }));
+      });
+      await sb(env, '/shift_product_openings', { method: 'POST', body: JSON.stringify(openingRows) });
+    }
 
     // 8. Insert shift_cash (9 denoms × 3 types = 27 rows)
     const cashRows = [];
