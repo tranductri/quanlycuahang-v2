@@ -115,7 +115,7 @@ async function submitShift(env, data) {
   // 2. Fetch products and stock types for this location in parallel
   const [allProducts, stockTypes] = await Promise.all([
     sb(env, '/products?select=id,price,product_locations(locations(name))&active=eq.true&order=sort_order.asc'),
-    sb(env, `/stock_types?location_id=eq.${location_id}&active=eq.true&order=sort_order.asc&select=id,field_key`),
+    sb(env, `/stock_types?location_id=eq.${location_id}&active=eq.true&order=sort_order.asc&select=id,field_key,closing_field_key`),
   ]);
 
   // 3. Filter to location's products (preserve global index as idx)
@@ -208,17 +208,29 @@ async function submitShift(env, data) {
       body: JSON.stringify(shiftProductRows.map(r => ({ ...r, shift_id }))),
     });
 
-    // 7b. Insert shift_product_openings (one row per stock type per product)
+    // 7b. Insert shift_product_openings and shift_product_closings
     if (stockTypes.length) {
-      const openingRows = insertedSPs.flatMap((sp, locIdx) => {
+      const openingRows = [];
+      const closingRows = [];
+      insertedSPs.forEach((sp, locIdx) => {
         const v = dataProds[locationProds[locIdx].idx] || {};
-        return stockTypes.map(st => ({
-          shift_product_id: sp.id,
-          stock_type_id: st.id,
-          count: Number(v[st.field_key]) || 0,
-        }));
+        stockTypes.forEach(st => {
+          openingRows.push({
+            shift_product_id: sp.id,
+            stock_type_id: st.id,
+            count: Number(v[st.field_key]) || 0,
+          });
+          closingRows.push({
+            shift_product_id: sp.id,
+            stock_type_id: st.id,
+            count: st.closing_field_key ? (Number(v[st.closing_field_key]) || 0) : 0,
+          });
+        });
       });
-      await sb(env, '/shift_product_openings', { method: 'POST', body: JSON.stringify(openingRows) });
+      await Promise.all([
+        sb(env, '/shift_product_openings', { method: 'POST', body: JSON.stringify(openingRows) }),
+        sb(env, '/shift_product_closings', { method: 'POST', body: JSON.stringify(closingRows) }),
+      ]);
     }
 
     // 8. Insert shift_cash (9 denoms × 3 types = 27 rows)

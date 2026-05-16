@@ -35,16 +35,17 @@ CREATE TABLE shifts (
   notes       text
 );
 
--- Opening stock types per location.
--- Each location defines its own set of opening stock positions (e.g. H1, H2, Kho, Hộp).
--- field_key maps to the frontend payload field name (dau_h1, dau_h2, dau_kho, dau_cu).
+-- Stock position types per location (shared by opening and closing phases).
+-- field_key         → frontend payload field for opening count (e.g. dau_h1)
+-- closing_field_key → frontend payload field for closing count (e.g. cuoi_kho); null if not tracked separately
 CREATE TABLE stock_types (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  location_id uuid REFERENCES locations(id) ON DELETE CASCADE,
-  name        text NOT NULL,
-  field_key   text NOT NULL,
-  sort_order  int NOT NULL DEFAULT 0,
-  active      boolean DEFAULT true
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  location_id       uuid REFERENCES locations(id) ON DELETE CASCADE,
+  name              text NOT NULL,
+  field_key         text NOT NULL,
+  closing_field_key text,
+  sort_order        int NOT NULL DEFAULT 0,
+  active            boolean DEFAULT true
 );
 
 CREATE TABLE shift_products (
@@ -64,8 +65,16 @@ CREATE TABLE shift_products (
   revenue          numeric DEFAULT 0
 );
 
--- One row per stock type per product per shift.
+-- One row per stock type per product per shift — opening counts.
 CREATE TABLE shift_product_openings (
+  shift_product_id uuid REFERENCES shift_products(id) ON DELETE CASCADE,
+  stock_type_id    uuid REFERENCES stock_types(id),
+  count            int NOT NULL DEFAULT 0,
+  PRIMARY KEY (shift_product_id, stock_type_id)
+);
+
+-- One row per stock type per product per shift — closing counts.
+CREATE TABLE shift_product_closings (
   shift_product_id uuid REFERENCES shift_products(id) ON DELETE CASCADE,
   stock_type_id    uuid REFERENCES stock_types(id),
   count            int NOT NULL DEFAULT 0,
@@ -102,6 +111,7 @@ ALTER TABLE stock_types            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shifts                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shift_products         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shift_product_openings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shift_product_closings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shift_cash             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shift_expenses         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users                  ENABLE ROW LEVEL SECURITY;
@@ -116,6 +126,7 @@ CREATE POLICY "public read" ON stock_types            FOR SELECT USING (true);
 CREATE POLICY "public read" ON shifts                 FOR SELECT USING (true);
 CREATE POLICY "public read" ON shift_products         FOR SELECT USING (true);
 CREATE POLICY "public read" ON shift_product_openings FOR SELECT USING (true);
+CREATE POLICY "public read" ON shift_product_closings FOR SELECT USING (true);
 CREATE POLICY "public read" ON shift_cash             FOR SELECT USING (true);
 CREATE POLICY "public read" ON shift_expenses         FOR SELECT USING (true);
 -- users table: no anon read (Worker uses service_role key which bypasses RLS)
