@@ -19,13 +19,17 @@ export default function Dashboard({ user, onLogout }) {
   const [shifts,     setShifts]     = useState(null)
   const [shiftProds, setShiftProds] = useState(null)
   const [loading,    setLoading]    = useState(false)
+  const [loadError,  setLoadError]  = useState('')
 
   useEffect(() => {
-    db.from('locations').select('id,name').then(({ data }) => setLocations(data || []))
+    db.from('locations').select('id,name')
+      .then(({ data }) => setLocations(data || []))
+      .catch(() => {})
   }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError('')
     try {
       let q = db.from('shifts')
         .select('*, locations(name)')
@@ -51,6 +55,7 @@ export default function Dashboard({ user, onLogout }) {
       setShiftProds(prods)
     } catch (err) {
       console.error('Dashboard load error:', err)
+      setLoadError('Không thể tải dữ liệu. Vui lòng thử lại.')
     } finally {
       setLoading(false)
     }
@@ -86,6 +91,10 @@ export default function Dashboard({ user, onLogout }) {
           onStartDate={setStartDate} onEndDate={setEndDate}
           onLocation={setLocationId} onApply={load}
         />
+
+        {loadError && (
+          <p className="mt-4 text-sm text-red-600 text-center">{loadError}</p>
+        )}
 
         {loading ? (
           <div className="space-y-4">

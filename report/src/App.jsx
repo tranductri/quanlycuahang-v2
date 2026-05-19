@@ -16,6 +16,7 @@ export default function App() {
     setAuthError('')
     try {
       const res  = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${resp.credential}`)
+      if (!res.ok) { setAuthError('Xác thực Google thất bại.'); return }
       const info = await res.json()
       if (!info.email) { setAuthError('Đăng nhập thất bại.'); return }
 
