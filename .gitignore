@@ -2,3 +2,7 @@ node_modules/
 .wrangler/
 *.env
 .env.local
+supabase/.temp/
+raw_payload.jsonl
+supabase/migration*.sql
+scripts/
