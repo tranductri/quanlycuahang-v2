@@ -21,12 +21,12 @@ export default function FilterBar({ startDate, endDate, locationId, locations, l
             onChange={e => onEndDate(e.target.value)}
             className="border border-zinc-200 rounded-md px-3 py-1.5 text-sm bg-zinc-50 text-zinc-700 focus:outline-none focus:ring-1 focus:ring-zinc-400"
           />
-          <Select value={locationId} onValueChange={onLocation}>
+          <Select value={locationId || 'all'} onValueChange={v => onLocation(v === 'all' ? '' : v)}>
             <SelectTrigger className="w-44 h-8 text-sm">
               <SelectValue placeholder="Tất cả cơ sở" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Tất cả cơ sở</SelectItem>
+              <SelectItem value="all">Tất cả cơ sở</SelectItem>
               {locations.map(l => (
                 <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
               ))}
